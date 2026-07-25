@@ -56,6 +56,10 @@ function parse(tokens) {
   return expressions
 }
 
+function checkTruth(el) {
+  return !(el === false || el === undefined || el === null)
+}
+
 const basicFunctions = {
   __proto__: null,
   print: console.log,
@@ -66,7 +70,29 @@ const basicFunctions = {
       values.slice(index * 2, index * 2 + 2))),
   "+": (...values) => values.reduce((sum, value) => sum + value),
   "-": (...values) => values.reduce((sum, value) => sum - value),
+  "*": (...values) => values.reduce((sum, value) => sum * value),
+  "/": (...values) => values.reduce((sum, value) => sum / value),
+  "%": (...values) => values.reduce((sum, value) => sum % value),
+  "not": (value) => !checkTruth(value),
+  "=": (...values) => values.slice(1).every(value => value === values[0]),
+  "==": (...values) => values.slice(1).every(value => value == values[0]),
+  "<": (...values) => values.slice(1).every((value, i) => value > values[i]),
+  ">": (...values) => values.slice(1).every((value, i) => value < values[i]),
+  "<=": (...values) => values.slice(1).every((value, i) => value >= values[i]),
+  ">=": (...values) => values.slice(1).every((value, i) => value <= values[i]),
   map: (fun, list) => Array.from(list).map(value => fun(value)),
+  reduce: (fun, list) => Array.from(list).reduce((result, value) => fun(result, value)),
+  all: (...values) => values.every(value => checkTruth(value)),
+  any: (...values) => values.some(value => checkTruth(value)),
+  head: list => list[0],
+  tail: list => list.slice(1),
+  init: list => list.slice(0, -1),
+  last: list => list.at(-1),
+  reverse: list => Array.from(list).reverse(),
+  concat: (...lists) => lists.flat(),
+  append: (list, ...values) => [...list, ...values],
+  get: (struct, key) => struct[key],
+  set: (struct, key, value) => struct[key] = value,
 }
 
 const baseFunctions = {
@@ -77,8 +103,46 @@ const baseFunctions = {
   do: (...expressions) => expressions.map(execute).at(-1),
 
   if: (condition, then, otherwise) =>
-    execute(condition) ? execute(then) :
+    checkTruth(execute(condition)) ? execute(then) :
       otherwise === undefined ? undefined : execute(otherwise),
+
+  case: (value, ...pairs) => {
+    value = execute(value)
+    for (let index = 0; index + 1 < pairs.length; index += 2)
+      if (value === execute(pairs[index]))
+        return execute(pairs[index + 1])
+    return pairs.length % 2 ? execute(pairs.at(-1)) : undefined
+  },
+
+  and: (...expressions) => {
+    let value = true
+    for (let expression of expressions) {
+      value = execute(expression)
+      if (!checkTruth(value))
+        return value
+    }
+    return value
+  },
+
+  or: (...expressions) => {
+    let value = false
+    for (let expression of expressions) {
+      value = execute(expression)
+      if (checkTruth(value))
+        return value
+    }
+    return value
+  },
+
+  "->": (value, ...expressions) => expressions.reduce((value, expression) => {
+    let [name, ...args] = Array.isArray(expression) ? expression : [expression]
+    return execute(name)(value, ...args.map(execute))
+  }, execute(value)),
+
+  "->>": (value, ...expressions) => expressions.reduce((value, expression) => {
+    let [name, ...args] = Array.isArray(expression) ? expression : [expression]
+    return execute(name)(...args.map(execute), value)
+  }, execute(value)),
 
   defn: (name, parameters, ...body) =>
     currentScope[name] = baseFunctions.lambda(parameters, ["do", ...body]),
