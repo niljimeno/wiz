@@ -69,9 +69,11 @@ const basicFunctions = {
     Array.from({ length: values.length / 2 }, (_, index) =>
       values.slice(index * 2, index * 2 + 2))),
   "+": (...values) => values.reduce((sum, value) => sum + value),
-  "-": (...values) => values.reduce((sum, value) => sum - value),
+  "-": (value, ...values) =>
+    values.length ? values.reduce((result, value) => result - value, value) : -value,
   "*": (...values) => values.reduce((sum, value) => sum * value),
-  "/": (...values) => values.reduce((sum, value) => sum / value),
+  "/": (value, ...values) =>
+    values.length ? values.reduce((result, value) => result / value, value) : 1 / value,
   "%": (...values) => values.reduce((sum, value) => sum % value),
   "not": (value) => !checkTruth(value),
   "=": (...values) => values.slice(1).every(value => value === values[0]),
