@@ -13,8 +13,8 @@ go install # install the """compiler""" in your system
 
 # then, on your project directory:
 wiz init
-wiz build
+wiz live
 
-# check contents inside target/ to run
-firefox target/index.html
+# for production builds:
+wiz build
 ```

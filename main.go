@@ -2,8 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"os/signal"
 	"strings"
 	"wiz/embed"
 )
@@ -26,6 +29,9 @@ func main() {
 		if err != nil {
 			fmt.Println(err)
 		}
+
+	case "live":
+		hotReload()
 	}
 }
 
@@ -69,6 +75,8 @@ func initialiseProject() error {
 }
 
 func buildProject() error {
+	os.Mkdir("target", 0755)
+
 	originalJs, err := os.ReadFile("internals/index.js")
 	if err != nil {
 		originalJs, err = embed.FS.ReadFile("index.js")
@@ -115,4 +123,34 @@ func buildProject() error {
 	}
 
 	return nil
+}
+
+func hotReload() {
+	os.Mkdir("target", 0755)
+	done := make(chan bool, 2)
+
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+	)
+	defer stop()
+
+	args := [][]string{
+		{"watchexec", "--watch", "src/", "--", "wiz", "build"},
+		{"live-server", "target"},
+	}
+
+	for _, arg := range args {
+		cmd := exec.CommandContext(ctx, arg[0], arg[1:]...)
+		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+		go func() {
+			cmd.Run()
+			done <- true
+		}()
+	}
+
+	for range len(args) {
+		<-done
+		stop()
+	}
 }
