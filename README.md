@@ -13,7 +13,7 @@ go install # install the """compiler""" in your system
 
 # then, on your project directory:
 wiz init
-wiz live
+wiz live # requires watchexec and live-server
 
 # for production builds:
 wiz build

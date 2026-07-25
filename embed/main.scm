@@ -1,2 +1,4 @@
 (defn view []
-  [:h1 "hello"])
+  (div
+    (h1 "hello")
+    (p "world")))

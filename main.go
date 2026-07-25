@@ -31,7 +31,7 @@ func main() {
 		}
 
 	case "live":
-		hotReload()
+		liveReload()
 	}
 }
 
@@ -125,7 +125,7 @@ func buildProject() error {
 	return nil
 }
 
-func hotReload() {
+func liveReload() {
 	os.Mkdir("target", 0755)
 	done := make(chan bool, 2)
 
@@ -144,7 +144,10 @@ func hotReload() {
 		cmd := exec.CommandContext(ctx, arg[0], arg[1:]...)
 		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 		go func() {
-			cmd.Run()
+			err := cmd.Run()
+			if err != nil {
+				fmt.Println("Error: -", err)
+			}
 			done <- true
 		}()
 	}

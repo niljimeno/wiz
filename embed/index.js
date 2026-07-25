@@ -132,6 +132,14 @@ function escapeHTML(input) {
     .replaceAll("'", "&#39;")
 }
 
+const htmlTags = [
+  "a", "article", "aside", "button", "code", "div", "em", "fieldset",
+  "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "img",
+  "input", "label", "legend", "li", "main", "nav", "ol", "option", "p", "pre",
+  "section", "select", "small", "span", "strong", "table", "tbody", "td",
+  "textarea", "th", "thead", "tr", "ul",
+]
+
 function executeInScope(expression, scope) {
   let previousScope = currentScope
   currentScope = scope
@@ -163,8 +171,14 @@ function toVariable(token) {
     case token == "false":
       return false
 
-    default:
+    case currentScope[token] != undefined:
       return currentScope[token]
+
+    case htmlTags.includes(token):
+      return (...children) => [token, ...children]
+
+    default:
+      return undefined
   }
 }
 
