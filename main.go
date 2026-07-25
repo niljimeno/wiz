@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"wizscm/embed"
+	"strings"
+	"wiz/embed"
 )
 
 func main() {
@@ -54,7 +55,7 @@ func initialiseProject() error {
 		return err
 	}
 
-	err = copyFSFile("main.js", "internals/main.js")
+	err = copyFSFile("index.js", "internals/index.js")
 	if err != nil {
 		return err
 	}
@@ -68,20 +69,50 @@ func initialiseProject() error {
 }
 
 func buildProject() error {
-	originalJs, err := os.ReadFile("internals/main.js")
+	originalJs, err := os.ReadFile("internals/index.js")
+	if err != nil {
+		originalJs, err = embed.FS.ReadFile("index.js")
+		if err != nil {
+			return err
+		}
+	}
+
+	finalContents := strings.Builder{}
+
+	scheme, err := os.ReadFile("src/main.scm")
 	if err != nil {
 		return err
 	}
 
-	scheme := []byte(`(print "hello")`)
-	formattedScheme := bytes.ReplaceAll(scheme, []byte("\\"), []byte("\\\\"))
-	formattedScheme = append([]byte("const code = '"), formattedScheme...)
-	formattedScheme = append(formattedScheme, []byte("'\n\n")...)
+	scheme = bytes.ReplaceAll(scheme, []byte("\\"), []byte("\\\\"))
+	scheme = bytes.ReplaceAll(scheme, []byte("`"), []byte("\\`"))
 
-	js := append(formattedScheme, originalJs...)
-	err = os.WriteFile("index.js", js, 0644)
+	finalContents.WriteString("const code = ")
+	finalContents.WriteString("`")
+
+	finalContents.Write(scheme)
+
+	finalContents.WriteString("`")
+	finalContents.WriteString("\n\n")
+	finalContents.Write(originalJs)
+
+	err = os.WriteFile("target/index.js", []byte(finalContents.String()), 0644)
 	if err != nil {
 		return err
 	}
+
+	html, err := os.ReadFile("internals/index.html")
+	if err != nil {
+		html, err = embed.FS.ReadFile("index.html")
+		if err != nil {
+			return err
+		}
+	}
+
+	err = os.WriteFile("target/index.html", html, 0644)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

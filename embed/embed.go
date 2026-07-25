@@ -2,5 +2,5 @@ package embed
 
 import "embed"
 
-//go:embed index.html main.js
+//go:embed index.html index.js main.scm
 var FS embed.FS

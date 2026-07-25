@@ -1,1 +1,2 @@
-(print "hello")
+(defn view []
+  [:h1 "hello"])

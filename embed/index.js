@@ -99,8 +99,8 @@ const baseFunctions = {
 
   let: (bindings, ...body) => {
     let localScope = Object.create(currentScope)
-    bindings.forEach(([name, value]) =>
-      localScope[name] = execute(value))
+    for (let index = 1; index < bindings.length; index += 2)
+      localScope[bindings[index]] = execute(bindings[index + 1])
     return executeInScope(["do", ...body], localScope)
   },
 
@@ -181,3 +181,10 @@ function execute(expression) {
 
   return fn(...args.map(execute))
 }
+
+parse(tokenize(code)).forEach(execute)
+if (currentScope["main"] != undefined) {
+  currentScope.main()
+}
+
+document.body.innerHTML = render(currentScope.view())
