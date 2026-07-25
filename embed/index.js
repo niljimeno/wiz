@@ -2,9 +2,9 @@ let variables = { __proto__: null }
 let currentScope = { __proto__: null }
 
 function tokenize(code) {
-  return [...code.matchAll(/"(?:\\.|[^"\\])*"|[()[\]{}]|[^\s()[\]{}]+/g)]
+  return [...code.matchAll(/"(?:\\.|[^"\\])*"|;[^\r\n]*|[()[\]{},]|[^\s()[\]{},;]+/g)]
     .map(match => match[0])
-    .filter(token => !token.startsWith("#"))
+    .filter(token => !token.startsWith(";"))
 }
 
 function parse(tokens) {
@@ -42,6 +42,9 @@ function parse(tokens) {
       index++
       return struct
     }
+
+    if (token == ",")
+      return [",", parse_read()]
 
     return token
   }
@@ -193,7 +196,8 @@ function execute(expression) {
 
   let fn = execute(name)
 
-  return fn(...args.map(execute))
+  return fn(...args.flatMap(arg =>
+    Array.isArray(arg) && arg[0] == "," ? execute(arg[1]) : [execute(arg)]))
 }
 
 parse(tokenize(code)).forEach(execute)
