@@ -13,9 +13,10 @@ function parse(tokens) {
   function parse_read() {
     let token = tokens[index++]
 
-    if (token == "(") {
-      let list = []
-      while (tokens[index] !== ")") {
+    function parse_list(closing, list = []) {
+      while (tokens[index] !== closing) {
+        if (tokens[index] === undefined)
+          throw Error("Unclosed " + token)
         list.push(parse_read())
       }
 
@@ -23,28 +24,20 @@ function parse(tokens) {
       return list
     }
 
-    if (token == "[") {
-      let list = ["list"]
-      while (tokens[index] !== "]") {
-        list.push(parse_read())
-      }
+    if (token == "(")
+      return parse_list(")")
 
-      index++
-      return list
-    }
+    if (token == "[")
+      return parse_list("]", ["list"])
 
-    if (token == "{") {
-      let struct = ["struct"]
-      while (tokens[index] !== "}") {
-        struct.push(parse_read())
-      }
-
-      index++
-      return struct
-    }
+    if (token == "{")
+      return parse_list("}", ["struct"])
 
     if (token == ",")
       return [",", parse_read()]
+
+    if (token.startsWith('"') && (token.length == 1 || token.at(-1) != '"'))
+      throw Error('Unclosed "')
 
     return token
   }
@@ -91,10 +84,37 @@ const basicFunctions = {
   init: list => list.slice(0, -1),
   last: list => list.at(-1),
   reverse: list => Array.from(list).reverse(),
+  repeat: (count, value) => Array(count).fill(value),
+  take: (count, list) => list.slice(0, count),
   concat: (...lists) => lists.flat(),
   append: (list, ...values) => [...list, ...values],
   get: (struct, key) => struct[key],
-  set: (struct, key, value) => struct[key] = value,
+  set: (struct, key, value) => ({ ...struct, [key]: value }),
+
+  httpReq: (type, { url, method = "GET", headers = {}, body }) => async () => {
+    headers = Object.fromEntries(Object.entries(headers).map(([key, value]) =>
+      [key.toLowerCase().replace(/(^|-)\w/g, part => part.toUpperCase()), value]))
+
+    if (body != undefined) {
+      if (headers["Content-Type"] == undefined)
+        headers["Content-Type"] = "application/json"
+
+      if (headers["Content-Type"].toLowerCase() == "application/json") {
+        body = JSON.stringify(body)
+      }
+    }
+
+    try {
+      let response = await fetch(url, { method, headers, body })
+      let contentType = response.headers.get("Content-Type") || ""
+      let value = contentType.includes("application/json")
+        ? await response.json()
+        : await response.text()
+      return { type, status: response.status, value }
+    } catch (error) {
+      return { type, status: false, value: error.message }
+    }
+  },
 }
 
 const baseFunctions = {
@@ -186,7 +206,8 @@ function render([tag, ...children]) {
     .join("")
 
   let content = children
-    .map(value => Array.isArray(value) ? render(value) : escapeHTML(value))
+    .map(value => !checkTruth(value) ? "" :
+      Array.isArray(value) ? render(value) : escapeHTML(value))
     .join("")
 
   return "<" + tag + attributes + ">" + content + "</" + tag + ">"
@@ -260,15 +281,50 @@ function execute(expression) {
   if (baseFunctions[name])
     return baseFunctions[name](...args)
 
-  let fn = execute(name)
+  let value = execute(name)
+  args = args.flatMap(arg =>
+    Array.isArray(arg) && arg[0] == "," ? execute(arg[1]) : [execute(arg)])
 
-  return fn(...args.flatMap(arg =>
-    Array.isArray(arg) && arg[0] == "," ? execute(arg[1]) : [execute(arg)]))
+  if (typeof value == "function")
+    return value(...args)
+
+  return value[args[0]]
 }
+
+let model
+let calls
+
+function dispatch(action) {
+  model = currentScope.update(model, action)
+  draw()
+}
+
+function draw() {
+  calls = new Map()
+  let view = currentScope.view(model)
+
+  function bind(value) {
+    if (!Array.isArray(value))
+      return
+
+    let handler = value[1]?.["on-click"]
+    if (handler) {
+      let id = calls.size
+      calls.set(String(id), async () =>
+        dispatch(await (typeof handler == "function" ? handler() : handler)))
+      value[1]["on-click"] = id
+    }
+
+    value.forEach(bind)
+  }
+
+  bind(view)
+  document.body.innerHTML = render(view)
+}
+
+document.body.onclick = event =>
+  calls.get(event.target.getAttribute("on-click"))?.()
 
 parse(tokenize(code)).forEach(execute)
-if (currentScope["main"] != undefined) {
-  currentScope.main()
-}
-
-document.body.innerHTML = render(currentScope.view())
+model = currentScope.init
+draw()
