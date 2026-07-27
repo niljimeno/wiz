@@ -56,7 +56,7 @@ function checkTruth(el) {
 const basicFunctions = {
   __proto__: null,
   print: console.log,
-  string: (...values) => values.join(" "),
+  string: (...values) => values.map(value => Array.isArray(value) ? value.join("") : value).join(" "),
   list: (...values) => values,
   struct: (...values) => Object.fromEntries(
     Array.from({ length: values.length / 2 }, (_, index) =>
@@ -119,6 +119,26 @@ const basicFunctions = {
 
 const baseFunctions = {
   __proto__: null,
+
+  import: name => {
+    if (currentScope[`@${name}`])
+      return
+    if (modules[name] == undefined)
+      throw Error(`Module not found: ${name}`)
+
+    let moduleScope = Object.create(currentScope)
+    let previousScope = currentScope
+    try {
+      currentScope = moduleScope
+      parse(tokenize(modules[name])).forEach(execute)
+    } finally {
+      currentScope = previousScope
+    }
+
+    for (let [key, value] of Object.entries(moduleScope))
+      previousScope[`${name}/${key}`] = value
+    previousScope[`@${name}`] = true
+  },
 
   def: (name, value) => currentScope[name] = execute(value),
 
@@ -201,25 +221,74 @@ function render([tag, ...children]) {
     ? children.shift()
     : {}
 
-  let attributes = Object.entries(attributesArgument)
-    .map(([key, value]) => " " + key + '="' + escapeHTML(value) + '"')
-    .join("")
+  let element = document.createElement(tag)
+  setAttributes(element, attributesArgument)
 
-  let content = children
-    .map(value => !checkTruth(value) ? "" :
-      Array.isArray(value) ? render(value) : escapeHTML(value))
-    .join("")
+  for (let child of children)
+    if (checkTruth(child))
+      element.append(Array.isArray(child) ? render(child) : String(child))
 
-  return "<" + tag + attributes + ">" + content + "</" + tag + ">"
+  return element
 }
 
-function escapeHTML(input) {
-  return String(input)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;")
+function setAttributes(node, attributes) {
+  for (let name of node.getAttributeNames())
+    if (!(name in attributes))
+      node.removeAttribute(name)
+
+  for (let [name, value] of Object.entries(attributes)) {
+    if (name == "key")
+      continue
+    if (name in node)
+      node[name] = value
+    if (value === false)
+      node.removeAttribute(name)
+    else
+      node.setAttribute(name, value === true ? "" : value)
+  }
+
+  node._key = attributes.key
+}
+
+function patch(node, view) {
+  if (!node)
+    return render(view)
+
+  if (!Array.isArray(view)) {
+    let text = String(view)
+    if (node.nodeType != Node.TEXT_NODE)
+      return document.createTextNode(text)
+    node.data = text
+    return node
+  }
+
+  let [tag, ...children] = view
+  if (node.nodeType != Node.ELEMENT_NODE || node.tagName.toLowerCase() != tag)
+    return render(view)
+
+  let attributes = children[0]?.constructor == Object ? children.shift() : {}
+  setAttributes(node, attributes)
+
+  children = children.filter(checkTruth)
+  let keyed = new Map([...node.childNodes]
+    .filter(child => child._key != undefined)
+    .map(child => [child._key, child]))
+  for (let index = 0; index < children.length; index++) {
+    let key = children[index][1]?.key
+    let oldChild = key == undefined ? node.childNodes[index] : keyed.get(key)
+    let newChild = patch(oldChild, children[index])
+    if (!oldChild)
+      node.append(newChild)
+    else if (oldChild != newChild)
+      node.replaceChild(newChild, oldChild)
+    if (newChild != node.childNodes[index])
+      node.insertBefore(newChild, node.childNodes[index] || null)
+  }
+
+  while (node.childNodes.length > children.length)
+    node.lastChild.remove()
+
+  return node
 }
 
 const htmlTags = [
@@ -303,27 +372,73 @@ function draw() {
   calls = new Map()
   let view = currentScope.view(model)
 
+  function clone(value) {
+    if (Array.isArray(value))
+      return value.map(clone)
+    if (value?.constructor == Object)
+      return Object.fromEntries(Object.entries(value).map(([key, value]) =>
+        [key, clone(value)]))
+    return value
+  }
+
+  view = clone(view) // prevent repeated objects from being the same virtual object
+
   function bind(value) {
     if (!Array.isArray(value))
       return
 
-    let handler = value[1]?.["on-click"]
-    if (handler) {
+    function bindHandler(name) {
+      let handler = value[1]?.[name]
+      if (!handler)
+        return
+
       let id = calls.size
-      calls.set(String(id), async () =>
-        dispatch(await (typeof handler == "function" ? handler() : handler)))
-      value[1]["on-click"] = id
+      calls.set(String(id), async event => {
+        let action = await (typeof handler == "function" ? handler(event) : handler)
+        if (action != undefined)
+          dispatch(action)
+      })
+      value[1][name] = id
     }
 
+    bindHandler("on-click")
+    bindHandler("on-input")
+    bindHandler("on-change")
+    bindHandler("on-scroll")
+    bindHandler("on-focus")
+    bindHandler("on-submit")
     value.forEach(bind)
   }
 
   bind(view)
-  document.body.innerHTML = render(view)
+  let node = patch(document.body.firstChild, view)
+  if (node != document.body.firstChild)
+    document.body.replaceChildren(node)
 }
 
 document.body.onclick = event =>
   calls.get(event.target.getAttribute("on-click"))?.()
+
+document.body.oninput = event =>
+  calls.get(event.target.getAttribute("on-input"))?.(event)
+
+document.body.onchange = event =>
+  calls.get(event.target.getAttribute("on-change"))?.(event)
+
+document.body.onfocus = event =>
+  calls.get(event.target?.getAttribute?.("on-focus"))?.(event)
+
+document.body.addEventListener("scroll", event =>
+  calls.get(event.target.getAttribute("on-scroll"))?.(event), true)
+
+document.body.onsubmit = event => {
+  let handler = calls.get(event.target.getAttribute("on-submit"))
+  if (!handler)
+    return
+
+  event.preventDefault()
+  handler(event)
+}
 
 parse(tokenize(code)).forEach(execute)
 model = currentScope.init

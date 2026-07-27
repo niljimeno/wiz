@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"wiz/embed"
 )
@@ -102,6 +104,32 @@ func buildProject() error {
 
 	finalContents.WriteString("`")
 	finalContents.WriteString("\n\n")
+
+	modules := map[string]string{}
+	err = filepath.WalkDir("src", func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || path == "src/main.scm" || filepath.Ext(path) != ".scm" {
+			return err
+		}
+		contents, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		name := strings.TrimSuffix(filepath.ToSlash(strings.TrimPrefix(path, "src/")), ".scm")
+		modules[name] = string(contents)
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+	moduleData, err := json.Marshal(modules)
+	if err != nil {
+		return err
+	}
+	finalContents.WriteString("const modules = ")
+	finalContents.Write(moduleData)
+	finalContents.WriteString("\n\n")
+
 	finalContents.Write(originalJs)
 
 	err = os.WriteFile("target/index.js", []byte(finalContents.String()), 0644)
