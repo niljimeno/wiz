@@ -21,7 +21,17 @@
       {:on-click {:type :change-variable
                   :value (not (model :variable))}}
       "change variable")
-    (p (string (model :variable)))
+
+    (div
+      (button
+        {:on-click (navigate "/hello")}
+        "change hello")
+      (or (location "/" (p "hello"))
+          (location "/hello" (p "world")))
+
+      (p (string (model :variable)))
+      (location "/hello" (p "hello")))
+
 
     [:br]
     (p (string (reverse (model :input))))

@@ -91,6 +91,8 @@ const basicFunctions = {
   get: (struct, key) => struct[key],
   set: (struct, key, value) => ({ ...struct, [key]: value }),
 
+  navigate: (path) => () => { history.pushState(null, "", path); draw() },
+
   httpReq: (type, { url, method = "GET", headers = {}, body }) => async () => {
     headers = Object.fromEntries(Object.entries(headers).map(([key, value]) =>
       [key.toLowerCase().replace(/(^|-)\w/g, part => part.toUpperCase()), value]))
@@ -213,6 +215,30 @@ const baseFunctions = {
     return executeInScope(["do", ...body], localScope)
   },
 
+  location: (pattern, ...body) => {
+    pattern = execute(pattern)
+    let pathname = window.location.pathname
+    let patternParts = pattern.split("/")
+    let pathParts = pathname.split("/")
+
+    if (patternParts.length !== pathParts.length)
+      return false
+
+    let params = {}
+    for (let i = 0; i < patternParts.length; i++) {
+      if (patternParts[i].startsWith(":"))
+        params[patternParts[i].slice(1)] = pathParts[i]
+      else if (patternParts[i] !== pathParts[i])
+        return false
+    }
+
+    let localScope = Object.create(currentScope)
+    for (let [key, value] of Object.entries(params))
+      localScope[key] = value
+
+    return executeInScope(["do", ...body], localScope)
+  },
+
   html: expression => render(execute(expression))
 }
 
@@ -324,10 +350,10 @@ function toVariable(token) {
     case basicFunctions[token] != undefined:
       return basicFunctions[token]
 
-    case token == "true":
+    case token == "true" || token == "#t":
       return true
 
-    case token == "false":
+    case token == "false" || token == "#f":
       return false
 
     case currentScope[token] != undefined:
@@ -439,6 +465,8 @@ document.body.onsubmit = event => {
   event.preventDefault()
   handler(event)
 }
+
+window.addEventListener("popstate", () => draw())
 
 parse(tokenize(code)).forEach(execute)
 model = currentScope.init

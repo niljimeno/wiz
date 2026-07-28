@@ -1,27 +1,41 @@
-# Wizard Scheme
+<div align="center">
+
+# Wiz - Wizard Scheme
 
 Using scheme for frontend development.
 
-### State
+![img](selling-point.jpg)
+</div>
 
-Very early stages, currently unusable.
 
+## State
 
-### Dependencies
+Barely usable.
+
+Documentation is on the works.
+
+## Dependencies
+Required:
 - Go
-- Npm packages: live-server, postcss-cli, postcss-nesting
 
-### Running
+(Optional) Npm packages:
+- live-server (for wiz live)
+- postcss-cli, postcss-nesting (for css post-processing)
 
-Try it out with:
+## Running
 
 ```sh
-go install # install the """compiler""" in your system
+# install the "compiler"
+go install
 
 # then, on your project directory:
-wiz init
-wiz live
 
-# for production builds:
+# create new project
+wiz init
+
+# compile project
 wiz build
+
+# test with hot-reload
+wiz live
 ```
