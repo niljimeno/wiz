@@ -57,6 +57,7 @@ func initialiseProject() error {
 	os.Mkdir("target", 0755)
 	os.Mkdir("internals", 0755)
 	os.Mkdir("src", 0755)
+	os.Mkdir("style", 0755)
 
 	err = copyFSFile("index.html", "internals/index.html")
 	if err != nil {
@@ -69,6 +70,11 @@ func initialiseProject() error {
 	}
 
 	err = copyFSFile("main.scm", "src/main.scm")
+	if err != nil {
+		return err
+	}
+
+	err = copyFSFile("style.css", "style/style.css")
 	if err != nil {
 		return err
 	}
@@ -87,7 +93,7 @@ func buildProject() error {
 		}
 	}
 
-	finalContents := strings.Builder{}
+	finalJs := strings.Builder{}
 
 	scheme, err := os.ReadFile("src/main.scm")
 	if err != nil {
@@ -97,13 +103,13 @@ func buildProject() error {
 	scheme = bytes.ReplaceAll(scheme, []byte("\\"), []byte("\\\\"))
 	scheme = bytes.ReplaceAll(scheme, []byte("`"), []byte("\\`"))
 
-	finalContents.WriteString("const code = ")
-	finalContents.WriteString("`")
+	finalJs.WriteString("const code = ")
+	finalJs.WriteString("`")
 
-	finalContents.Write(scheme)
+	finalJs.Write(scheme)
 
-	finalContents.WriteString("`")
-	finalContents.WriteString("\n\n")
+	finalJs.WriteString("`")
+	finalJs.WriteString("\n\n")
 
 	modules := map[string]string{}
 	err = filepath.WalkDir("src", func(path string, entry os.DirEntry, err error) error {
@@ -126,15 +132,44 @@ func buildProject() error {
 	if err != nil {
 		return err
 	}
-	finalContents.WriteString("const modules = ")
-	finalContents.Write(moduleData)
-	finalContents.WriteString("\n\n")
+	finalJs.WriteString("const modules = ")
+	finalJs.Write(moduleData)
+	finalJs.WriteString("\n\n")
 
-	finalContents.Write(originalJs)
+	finalJs.Write(originalJs)
 
-	err = os.WriteFile("target/index.js", []byte(finalContents.String()), 0644)
+	err = os.WriteFile("target/index.js", []byte(finalJs.String()), 0644)
 	if err != nil {
 		return err
+	}
+
+	finalCss := strings.Builder{}
+	err = filepath.WalkDir("style", func(path string, entry os.DirEntry, err error) error {
+		if err != nil || filepath.Ext(path) != ".css" {
+			return err
+		}
+		contents, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+
+		finalCss.Write(contents)
+		finalCss.WriteString("\n")
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile("target/style.css", []byte(finalCss.String()), 0644)
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command("postcss", "target/style.css", "--use", "postcss-nesting", "--output", "target/style.css")
+	err = cmd.Run()
+	if err != nil {
+		fmt.Println("Error preprocessing css")
 	}
 
 	html, err := os.ReadFile("internals/index.html")
