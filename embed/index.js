@@ -125,6 +125,14 @@ const baseFunctions = {
   import: name => {
     if (currentScope[`@${name}`])
       return
+
+    if (jsModules[name] != undefined) {
+      for (let [key, value] of Object.entries(jsModules[name]))
+        currentScope[`${name}/${key}`] = value
+      currentScope[`@${name}`] = true
+      return
+    }
+
     if (modules[name] == undefined)
       throw Error(`Module not found: ${name}`)
 
@@ -239,7 +247,9 @@ const baseFunctions = {
     return executeInScope(["do", ...body], localScope)
   },
 
-  html: expression => render(execute(expression))
+  html: expression => render(execute(expression)),
+
+  raw: expression => ({ __raw: true, html: execute(expression) })
 }
 
 function render([tag, ...children]) {
@@ -252,7 +262,9 @@ function render([tag, ...children]) {
 
   for (let child of children)
     if (checkTruth(child))
-      element.append(Array.isArray(child) ? render(child) : String(child))
+      element.append(child?.__raw
+        ? document.createRange().createContextualFragment(child.html)
+        : Array.isArray(child) ? render(child) : String(child))
 
   return element
 }
@@ -268,7 +280,7 @@ function setAttributes(node, attributes) {
     if (name in node)
       node[name] = value
     if (value === false)
-      node.removeAttribute(name)
+      node.toggleAttribute(name, true)
     else
       node.setAttribute(name, value === true ? "" : value)
   }
@@ -293,6 +305,9 @@ function patch(node, view) {
     return render(view)
 
   let attributes = children[0]?.constructor == Object ? children.shift() : {}
+
+  if (children.some(child => child?.__raw))
+    return render(view)
   setAttributes(node, attributes)
 
   children = children.filter(checkTruth)

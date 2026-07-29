@@ -112,18 +112,38 @@ func buildProject() error {
 	finalJs.WriteString("\n\n")
 
 	modules := map[string]string{}
-	err = filepath.WalkDir("src", func(path string, entry os.DirEntry, err error) error {
-		if err != nil || entry.IsDir() || path == "src/main.scm" || filepath.Ext(path) != ".scm" {
-			return err
-		}
-		contents, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return readErr
-		}
-		name := strings.TrimSuffix(filepath.ToSlash(strings.TrimPrefix(path, "src/")), ".scm")
-		modules[name] = string(contents)
-		return nil
-	})
+	jsModules := map[string]string{}
+	err = filepath.WalkDir(
+		"src",
+		func(path string, entry os.DirEntry, err error) error {
+			if err != nil || entry.IsDir() || path == "src/main.scm" {
+				return err
+			}
+
+			contents, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+
+			extension := filepath.Ext(path)
+			switch extension {
+			default:
+				return err
+			case ".scm", ".js":
+			}
+
+			name := strings.TrimSuffix(
+				filepath.ToSlash(strings.TrimPrefix(path, "src/")),
+				extension,
+			)
+
+			if extension == ".js" {
+				jsModules[name] = string(contents)
+			} else {
+				modules[name] = string(contents)
+			}
+			return nil
+		})
 
 	if err != nil {
 		return err
@@ -135,6 +155,17 @@ func buildProject() error {
 	finalJs.WriteString("const modules = ")
 	finalJs.Write(moduleData)
 	finalJs.WriteString("\n\n")
+
+	finalJs.WriteString("const jsModules = {}\n")
+	for name, contents := range jsModules {
+		key, _ := json.Marshal(name)
+		finalJs.WriteString("jsModules[")
+		finalJs.Write(key)
+		finalJs.WriteString("] = ")
+		finalJs.WriteString(contents)
+		finalJs.WriteString("\n")
+	}
+	finalJs.WriteString("\n")
 
 	finalJs.Write(originalJs)
 
