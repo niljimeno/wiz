@@ -10,9 +10,7 @@ Using scheme for frontend development.
 
 ## State
 
-Barely usable.
-
-Documentation is on the works.
+Usable, but no documentation yet.
 
 ## Dependencies
 Required:

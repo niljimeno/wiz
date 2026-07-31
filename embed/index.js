@@ -86,6 +86,7 @@ const basicFunctions = {
   reverse: list => Array.from(list).reverse(),
   repeat: (count, value) => Array(count).fill(value),
   take: (count, list) => list.slice(0, count),
+  drop: (count, list) => list.slice(count),
   concat: (...lists) => lists.flat(),
   append: (list, ...values) => [...list, ...values],
   get: (struct, key) => struct[key],
