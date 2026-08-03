@@ -38,7 +38,16 @@ func main() {
 }
 
 func displayHelp() {
-	fmt.Println("Help")
+	fmt.Println(
+		`Wiz - usage:
+> wiz init :: initialise project
+> wiz build :: compile project into target
+> wiz live :: live reload project
+
+Project structure:
+- /src :: add your scheme and javascript modules there
+- /style :: add your css files there. they will later be processed into a single style.css.
+- /static :: where all your static content will go to (except css)`)
 }
 
 func copyFSFile(originalName, location string) error {
@@ -52,12 +61,44 @@ func copyFSFile(originalName, location string) error {
 	return nil
 }
 
+func copyDir(source, destination string) error {
+	entries, err := os.ReadDir(source)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(destination, 0755); err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		sourcePath := filepath.Join(source, entry.Name())
+		destinationPath := filepath.Join(destination, entry.Name())
+		if entry.IsDir() {
+			if err := copyDir(sourcePath, destinationPath); err != nil {
+				return err
+			}
+			continue
+		}
+
+		contents, err := os.ReadFile(sourcePath)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(destinationPath, contents, 0644); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func initialiseProject() error {
 	var err error
 	os.Mkdir("target", 0755)
 	os.Mkdir("internals", 0755)
 	os.Mkdir("src", 0755)
 	os.Mkdir("style", 0755)
+	os.Mkdir("static", 0755)
 
 	err = copyFSFile("index.html", "internals/index.html")
 	if err != nil {
@@ -65,6 +106,11 @@ func initialiseProject() error {
 	}
 
 	err = copyFSFile("index.js", "internals/index.js")
+	if err != nil {
+		return err
+	}
+
+	err = copyFSFile("transform.js", "internals/transform.js")
 	if err != nil {
 		return err
 	}
@@ -138,7 +184,7 @@ func buildProject() error {
 			)
 
 			if extension == ".js" {
-				jsModules[name] = string(contents)
+				jsModules[name] = path
 			} else {
 				modules[name] = string(contents)
 			}
@@ -157,12 +203,35 @@ func buildProject() error {
 	finalJs.WriteString("\n\n")
 
 	finalJs.WriteString("const jsModules = {}\n")
-	for name, contents := range jsModules {
+	for name, path := range jsModules {
+		temp, err := os.CreateTemp("", "wiz-js-*.js")
+		if err != nil {
+			return err
+		}
+		tempName := temp.Name()
+		if closeErr := temp.Close(); closeErr != nil {
+			os.Remove(tempName)
+			return closeErr
+		}
+
+		cmd := exec.Command("node", "internals/transform.js", path, tempName, name)
+		if err := cmd.Run(); err != nil {
+			os.Remove(tempName)
+			return err
+		}
+
+		transformed, readErr := os.ReadFile(tempName)
+		os.Remove(tempName)
+		if readErr != nil {
+			return readErr
+		}
+		finalJs.Write(transformed)
 		key, _ := json.Marshal(name)
 		finalJs.WriteString("jsModules[")
 		finalJs.Write(key)
 		finalJs.WriteString("] = ")
-		finalJs.WriteString(contents)
+		finalJs.WriteString(name)
+		finalJs.WriteString("\n")
 		finalJs.WriteString("\n")
 	}
 	finalJs.WriteString("\n")
@@ -212,6 +281,11 @@ func buildProject() error {
 	}
 
 	err = os.WriteFile("target/index.html", html, 0644)
+	if err != nil {
+		return err
+	}
+
+	err = copyDir("static", "target/static")
 	if err != nil {
 		return err
 	}

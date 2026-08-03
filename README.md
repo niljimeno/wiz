@@ -15,6 +15,7 @@ Usable, but no documentation yet.
 ## Dependencies
 Required:
 - Go
+- Node
 
 (Optional) Npm packages:
 - live-server (for wiz live)

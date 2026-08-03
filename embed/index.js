@@ -124,6 +124,8 @@ const baseFunctions = {
   __proto__: null,
 
   import: name => {
+    name = toVariable(name)
+
     if (currentScope[`@${name}`])
       return
 
