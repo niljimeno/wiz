@@ -250,7 +250,9 @@ const baseFunctions = {
     return executeInScope(["do", ...body], localScope)
   },
 
-  html: expression => render(execute(expression)),
+  render: expression => {
+    return render(execute(expression))
+  },
 
   raw: expression => ({ __raw: true, html: execute(expression) })
 }
@@ -340,7 +342,7 @@ const htmlTags = [
   "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "img",
   "input", "label", "legend", "li", "main", "nav", "ol", "option", "p", "pre",
   "section", "select", "small", "span", "strong", "table", "tbody", "td",
-  "textarea", "th", "thead", "tr", "ul",
+  "textarea", "th", "thead", "tr", "ul", "canvas",
 ]
 
 function executeInScope(expression, scope) {
@@ -401,6 +403,9 @@ function execute(expression) {
   if (typeof value == "function")
     return value(...args)
 
+  if (value == undefined)
+    throw Error("Cannot execute " + JSON.stringify(expression))
+
   return value[args[0]]
 }
 
@@ -455,28 +460,47 @@ function draw() {
   }
 
   bind(view)
+  if (view instanceof Node) {
+    document.body.replaceChildren(view)
+    currentScope["on-view"]?.(model)
+    return
+  }
+
   let node = patch(document.body.firstChild, view)
   if (node != document.body.firstChild)
     document.body.replaceChildren(node)
+
+  currentScope["on-view"]?.(model)
 }
 
 document.body.onclick = event =>
-  calls.get(event.target.getAttribute("on-click"))?.()
+  trigger(event, "on-click")
 
 document.body.oninput = event =>
-  calls.get(event.target.getAttribute("on-input"))?.(event)
+  trigger(event, "on-input")
 
 document.body.onchange = event =>
-  calls.get(event.target.getAttribute("on-change"))?.(event)
+  trigger(event, "on-change")
 
-document.body.onfocus = event =>
-  calls.get(event.target?.getAttribute?.("on-focus"))?.(event)
+function findCall(event, name) {
+  for (let node = event.target; node && node != document.body; node = node.parentElement) {
+    let id = node.getAttribute?.(name)
+    if (id != undefined)
+      return calls.get(id)
+  }
+}
+
+function trigger(event, name) {
+  findCall(event, name)?.(event)
+}
+
+document.body.addEventListener("focus", event => trigger(event, "on-focus"), true)
 
 document.body.addEventListener("scroll", event =>
-  calls.get(event.target.getAttribute("on-scroll"))?.(event), true)
+  trigger(event, "on-scroll"), true)
 
 document.body.onsubmit = event => {
-  let handler = calls.get(event.target.getAttribute("on-submit"))
+  let handler = findCall(event, "on-submit")
   if (!handler)
     return
 
