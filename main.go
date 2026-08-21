@@ -66,6 +66,7 @@ func copyDir(source, destination string) error {
 	if err != nil {
 		return err
 	}
+
 	if err := os.MkdirAll(destination, 0755); err != nil {
 		return err
 	}
@@ -304,8 +305,8 @@ func liveReload() {
 	defer stop()
 
 	args := [][]string{
-		{"watchexec", "--watch", "src/", "--", "wiz", "build"},
-		{"live-server", "target"},
+		{"watchexec", "-e", "html,css,js,scm", "-i", "target/**", "wiz build"},
+		{"live-server", "target", "--ignore=static/**"},
 	}
 
 	for _, arg := range args {
