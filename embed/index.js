@@ -359,7 +359,8 @@ function executeInScope(expression, scope) {
 function toVariable(token) {
   switch (true) {
     case token.startsWith('"'):
-      return token.slice(1, -1).replace(/\\(.)/g, "$1")
+      return token.slice(1, -1).replace(/\\(.)/g, (_, escape) =>
+        ({ n: "\n", r: "\r", t: "\t" }[escape] ?? escape))
 
     case /^-?\d+(\.\d+)?$/.test(token):
       return Number(token)
@@ -420,6 +421,11 @@ function dispatch(action) {
 function draw() {
   calls = new Map()
   let view = currentScope.view(model)
+
+  if (view?.constructor == Object) {
+    document.title = view.title
+    view = view.body
+  }
 
   function clone(value) {
     if (Array.isArray(value))

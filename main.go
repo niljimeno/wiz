@@ -20,6 +20,9 @@ func main() {
 	}
 
 	switch os.Args[1] {
+	default:
+		displayHelp()
+
 	case "init":
 		err := initialiseProject()
 		if err != nil {
@@ -51,6 +54,13 @@ Project structure:
 }
 
 func copyFSFile(originalName, location string) error {
+	fmt.Printf("Copying %s into %s\n", originalName, location)
+	_, err := os.Stat(location)
+	if err == nil {
+		fmt.Printf("File %s exists, skipping.\n", location)
+		return nil
+	}
+
 	contents, err := embed.FS.ReadFile(originalName)
 	if err != nil {
 		return err
@@ -125,6 +135,10 @@ func initialiseProject() error {
 	if err != nil {
 		return err
 	}
+
+	copyFSFile("gitignore", ".gitignore")
+
+	fmt.Println("Created project")
 
 	return nil
 }
