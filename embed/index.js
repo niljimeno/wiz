@@ -58,6 +58,7 @@ const basicFunctions = {
   print: console.log,
   string: (...values) => values.map(value => Array.isArray(value) ? value.join("") : value).join(" "),
   list: (...values) => values,
+  length: list => list.length,
   struct: (...values) => Object.fromEntries(
     Array.from({ length: values.length / 2 }, (_, index) =>
       values.slice(index * 2, index * 2 + 2))),
@@ -91,6 +92,10 @@ const basicFunctions = {
   append: (list, ...values) => [...list, ...values],
   get: (struct, key) => struct[key],
   set: (struct, key, value) => ({ ...struct, [key]: value }),
+  send: (...args) => args.length > 1 ? send({type: args[0], value: args[1]}) : send(args[0]),
+  sendAsync: effect => sendAsync(effect),
+
+  "empty?": list => list == undefined || list.length == 0,
 
   navigate: (path) => () => { history.pushState(null, "", path); draw() },
 
@@ -413,9 +418,15 @@ function execute(expression) {
 let model
 let calls
 
-function dispatch(action) {
+function send(action) {
   model = currentScope.update(model, action)
   draw()
+}
+
+async function sendAsync(effect) {
+  let action = await effect()
+  if (action != undefined)
+    send(action)
 }
 
 function draw() {
@@ -451,7 +462,7 @@ function draw() {
       calls.set(String(id), async event => {
         let action = await (typeof handler == "function" ? handler(event) : handler)
         if (action != undefined)
-          dispatch(action)
+          send(action)
       })
       value[1][name] = id
     }
