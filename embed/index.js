@@ -342,7 +342,7 @@ const htmlTags = [
   "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "img",
   "input", "label", "legend", "li", "main", "nav", "ol", "option", "p", "pre",
   "section", "select", "small", "span", "strong", "table", "tbody", "td",
-  "textarea", "th", "thead", "tr", "ul", "canvas",
+  "textarea", "th", "thead", "tr", "ul", "canvas", "b", "i", "br",
 ]
 
 function executeInScope(expression, scope) {
