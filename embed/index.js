@@ -72,6 +72,8 @@ const basicFunctions = {
   "not": (value) => !checkTruth(value),
   "=": (...values) => values.slice(1).every(value => value === values[0]),
   "==": (...values) => values.slice(1).every(value => value == values[0]),
+  "/=": (...values) => !values.slice(1).every(value => value === values[0]),
+  "/==": (...values) => !values.slice(1).every(value => value == values[0]),
   "<": (...values) => values.slice(1).every((value, i) => value > values[i]),
   ">": (...values) => values.slice(1).every((value, i) => value < values[i]),
   "<=": (...values) => values.slice(1).every((value, i) => value >= values[i]),
@@ -87,13 +89,35 @@ const basicFunctions = {
   reverse: list => Array.from(list).reverse(),
   repeat: (count, value) => Array(count).fill(value),
   take: (count, list) => list.slice(0, count),
-  drop: (count, list) => list.slice(count),
+  "take-while": (fun, list) => {
+    let index = 0
+    for (let value of list) {
+      if (!fun(value))
+        return list.slice(0, index)
+      index++
+    }
+    return list
+  },
+  "drop-while": (fun, list) => {
+    let index = 0
+    for (let value of list) {
+      if (!fun(value))
+        break
+      index++
+    }
+    return list.slice(index)
+  },
+  drop: (...args) => {
+    let list = args.at(-1)
+    let count = args.length == 1 ? 1 : args[0]
+    return list.slice(count)
+  },
   concat: (...lists) => lists.flat(),
   append: (list, ...values) => [...list, ...values],
   get: (struct, key) => struct[key],
   set: (struct, key, value) => ({ ...struct, [key]: value }),
   send: (...args) => args.length > 1 ? send({type: args[0], value: args[1]}) : send(args[0]),
-  sendAsync: effect => sendAsync(effect),
+  "send-async": effect => sendAsync(effect),
 
   "empty?": list => list == undefined || list.length == 0,
 
