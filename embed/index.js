@@ -286,13 +286,15 @@ const baseFunctions = {
   raw: expression => ({ __raw: true, html: execute(expression) })
 }
 
-function render([tag, ...children]) {
+function render(view) {
+  bind(view)
+  let [tag, ...children] = view
   let attributesArgument = children[0]?.constructor == Object
     ? children.shift()
     : {}
 
   let element = document.createElement(tag)
-  setAttributes(element, attributesArgument)
+  setAttributes(element, {}, attributesArgument)
 
   for (let child of children)
     if (checkTruth(child))
@@ -303,13 +305,45 @@ function render([tag, ...children]) {
   return element
 }
 
-function setAttributes(node, attributes) {
+let calls = new Map()
+let nextCall = 0
+
+function bind(value) {
+  if (!Array.isArray(value))
+    return
+
+  function bindHandler(name) {
+    let attributes = value[1]
+    let handler = attributes?.[name]
+    if (!handler || typeof handler == "number")
+      return
+
+    let id = nextCall++
+    calls.set(String(id), async event => {
+      let action = await (typeof handler == "function" ? handler(event) : handler)
+      if (action != undefined)
+        send(action)
+    })
+    attributes[name] = id
+  }
+
+  bindHandler("on-click")
+  bindHandler("on-input")
+  bindHandler("on-change")
+  bindHandler("on-scroll")
+  bindHandler("on-focus")
+  bindHandler("on-submit")
+}
+
+function setAttributes(node, oldAttributes, attributes) {
   for (let name of node.getAttributeNames())
     if (!(name in attributes))
       node.removeAttribute(name)
 
   for (let [name, value] of Object.entries(attributes)) {
     if (name == "key")
+      continue
+    if (oldAttributes[name] === value)
       continue
     if (name in node)
       node[name] = value
@@ -322,7 +356,10 @@ function setAttributes(node, attributes) {
   node._key = attributes.key
 }
 
-function patch(node, view) {
+function patch(node, oldView, view) {
+  if (oldView === view)
+    return node
+
   if (!node)
     return render(view)
 
@@ -335,23 +372,32 @@ function patch(node, view) {
   }
 
   let [tag, ...children] = view
-  if (node.nodeType != Node.ELEMENT_NODE || node.tagName.toLowerCase() != tag)
+  if (!Array.isArray(oldView) || oldView[0] != tag ||
+      node.nodeType != Node.ELEMENT_NODE || node.tagName.toLowerCase() != tag)
     return render(view)
 
+  bind(view)
+  let oldChildren = oldView.slice(1)
   let attributes = children[0]?.constructor == Object ? children.shift() : {}
+  let oldAttributes = oldChildren[0]?.constructor == Object ? oldChildren.shift() : {}
 
   if (children.some(child => child?.__raw))
     return render(view)
-  setAttributes(node, attributes)
+  setAttributes(node, oldAttributes, attributes)
 
+  oldChildren = oldChildren.filter(checkTruth)
   children = children.filter(checkTruth)
   let keyed = new Map([...node.childNodes]
     .filter(child => child._key != undefined)
     .map(child => [child._key, child]))
+  let oldKeyed = new Map(oldChildren
+    .filter(child => Array.isArray(child) && child[1]?.key != undefined)
+    .map(child => [child[1].key, child]))
   for (let index = 0; index < children.length; index++) {
     let key = children[index][1]?.key
     let oldChild = key == undefined ? node.childNodes[index] : keyed.get(key)
-    let newChild = patch(oldChild, children[index])
+    let oldChildView = key == undefined ? oldChildren[index] : oldKeyed.get(key)
+    let newChild = patch(oldChild, oldChildView, children[index])
     if (!oldChild)
       node.append(newChild)
     else if (oldChild != newChild)
@@ -440,7 +486,7 @@ function execute(expression) {
 }
 
 let model
-let calls
+let previousView
 
 function send(action) {
   model = currentScope.update(model, action)
@@ -454,7 +500,6 @@ async function sendAsync(effect) {
 }
 
 function draw() {
-  calls = new Map()
   let view = currentScope.view(model)
 
   if (view?.constructor == Object) {
@@ -462,54 +507,17 @@ function draw() {
     view = view.body
   }
 
-  function clone(value) {
-    if (Array.isArray(value))
-      return value.map(clone)
-    if (value?.constructor == Object)
-      return Object.fromEntries(Object.entries(value).map(([key, value]) =>
-        [key, clone(value)]))
-    return value
-  }
-
-  view = clone(view) // prevent repeated objects from being the same virtual object
-
-  function bind(value) {
-    if (!Array.isArray(value))
-      return
-
-    function bindHandler(name) {
-      let handler = value[1]?.[name]
-      if (!handler)
-        return
-
-      let id = calls.size
-      calls.set(String(id), async event => {
-        let action = await (typeof handler == "function" ? handler(event) : handler)
-        if (action != undefined)
-          send(action)
-      })
-      value[1][name] = id
-    }
-
-    bindHandler("on-click")
-    bindHandler("on-input")
-    bindHandler("on-change")
-    bindHandler("on-scroll")
-    bindHandler("on-focus")
-    bindHandler("on-submit")
-    value.forEach(bind)
-  }
-
-  bind(view)
   if (view instanceof Node) {
     document.body.replaceChildren(view)
+    previousView = view
     currentScope["on-view"]?.(model)
     return
   }
 
-  let node = patch(document.body.firstChild, view)
+  let node = patch(document.body.firstChild, previousView, view)
   if (node != document.body.firstChild)
     document.body.replaceChildren(node)
+  previousView = view
 
   currentScope["on-view"]?.(model)
 }
@@ -527,6 +535,7 @@ function findCall(event, name) {
   for (let node = event.target; node && node != document.body; node = node.parentElement) {
     let id = node.getAttribute?.(name)
     if (id != undefined)
+      event.preventDefault()
       return calls.get(id)
   }
 }
