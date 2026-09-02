@@ -123,6 +123,9 @@ const basicFunctions = {
 
   navigate: (path) => () => { history.pushState(null, "", path); draw() },
 
+  bounds: node => node.getBoundingClientRect(),
+  "element-from-point": (x, y) => document.elementFromPoint(x, y),
+
   httpReq: (type, { url, method = "GET", headers = {}, body }) => async () => {
     headers = Object.fromEntries(Object.entries(headers).map(([key, value]) =>
       [key.toLowerCase().replace(/(^|-)\w/g, part => part.toUpperCase()), value]))
@@ -333,6 +336,10 @@ function bind(value) {
   bindHandler("on-scroll")
   bindHandler("on-focus")
   bindHandler("on-submit")
+  bindHandler("on-pointerdown")
+  bindHandler("on-pointermove")
+  bindHandler("on-pointerup")
+  bindHandler("on-pointercancel")
 }
 
 function setAttributes(node, oldAttributes, attributes) {
@@ -531,12 +538,28 @@ document.body.oninput = event =>
 document.body.onchange = event =>
   trigger(event, "on-change")
 
+// ponytail: capture lost if scheme unmounts the grabbed node mid-drag; keep dragged items keyed
+document.body.onpointerdown = event => {
+  event.target.setPointerCapture?.(event.pointerId)
+  trigger(event, "on-pointerdown")
+}
+
+document.body.onpointermove = event =>
+  trigger(event, "on-pointermove")
+
+document.body.onpointerup = event =>
+  trigger(event, "on-pointerup")
+
+document.body.onpointercancel = event =>
+  trigger(event, "on-pointercancel")
+
 function findCall(event, name) {
   for (let node = event.target; node && node != document.body; node = node.parentElement) {
     let id = node.getAttribute?.(name)
-    if (id != undefined)
+    if (id != undefined) {
       event.preventDefault()
       return calls.get(id)
+    }
   }
 }
 
