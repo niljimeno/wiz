@@ -79,7 +79,9 @@ const basicFunctions = {
   "<=": (...values) => values.slice(1).every((value, i) => value >= values[i]),
   ">=": (...values) => values.slice(1).every((value, i) => value <= values[i]),
   map: (fun, list) => Array.from(list).map(value => fun(value)),
-  reduce: (fun, list) => Array.from(list).reduce((result, value) => fun(result, value)),
+  reduce: (fun, list, init) => init ?
+    Array.from(list).reduce((result, value) => fun(result, value), init) :
+    Array.from(list).reduce((result, value) => fun(result, value)),
   all: (...values) => values.every(value => checkTruth(value)),
   any: (...values) => values.some(value => checkTruth(value)),
   head: list => list[0],

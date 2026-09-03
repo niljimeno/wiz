@@ -24,7 +24,14 @@ func main() {
 		displayHelp()
 
 	case "init":
-		err := initialiseProject()
+		var path string
+		if len(os.Args) > 2 {
+			path = os.Args[2]
+			if path[len(path)-1] != '/' {
+				path += "/"
+			}
+		}
+		err := initialiseProject(path)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -103,40 +110,44 @@ func copyDir(source, destination string) error {
 	return nil
 }
 
-func initialiseProject() error {
+func initialiseProject(path string) error {
+	if path != "" {
+		os.MkdirAll(path, 0755)
+	}
+
 	var err error
-	os.Mkdir("target", 0755)
-	os.Mkdir("internals", 0755)
-	os.Mkdir("src", 0755)
-	os.Mkdir("style", 0755)
-	os.Mkdir("static", 0755)
+	os.Mkdir(path+"target", 0755)
+	os.Mkdir(path+"internals", 0755)
+	os.Mkdir(path+"src", 0755)
+	os.Mkdir(path+"style", 0755)
+	os.Mkdir(path+"static", 0755)
 
-	err = copyFSFile("index.html", "internals/index.html")
+	err = copyFSFile("index.html", path+"internals/index.html")
 	if err != nil {
 		return err
 	}
 
-	err = copyFSFile("index.js", "internals/index.js")
+	err = copyFSFile("index.js", path+"internals/index.js")
 	if err != nil {
 		return err
 	}
 
-	err = copyFSFile("transform.js", "internals/transform.js")
+	err = copyFSFile("transform.js", path+"internals/transform.js")
 	if err != nil {
 		return err
 	}
 
-	err = copyFSFile("main.scm", "src/main.scm")
+	err = copyFSFile("main.scm", path+"src/main.scm")
 	if err != nil {
 		return err
 	}
 
-	err = copyFSFile("style.css", "style/style.css")
+	err = copyFSFile("style.css", path+"style/style.css")
 	if err != nil {
 		return err
 	}
 
-	copyFSFile("gitignore", ".gitignore")
+	copyFSFile("gitignore", path+".gitignore")
 
 	fmt.Println("Created project")
 

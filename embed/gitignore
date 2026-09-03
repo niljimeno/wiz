@@ -1,2 +1,3 @@
 target/
 internals/*.js
+node_modules/
