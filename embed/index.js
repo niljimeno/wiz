@@ -116,8 +116,20 @@ const basicFunctions = {
   },
   concat: (...lists) => lists.flat(),
   append: (list, ...values) => [...list, ...values],
-  get: (struct, key) => struct[key],
-  set: (struct, key, value) => ({ ...struct, [key]: value }),
+  get: (struct, ...keys) => keys.reduce((result, value) => result[value], struct),
+  set: (struct, key, value) => {
+    if (key.constructor === Array && key.length > 0) {
+      let obj = struct
+      for (let i = 0; i < key.length - 1; i++) {
+        obj = obj[key[i]]
+      }
+
+      obj[key[key.length - 1]] = value
+      return struct
+    } else {
+      return { ...struct, [key]: value }
+    }
+  },
   send: (...args) => args.length > 1 ? send({type: args[0], value: args[1]}) : send(args[0]),
   "send-async": effect => sendAsync(effect),
 
@@ -488,10 +500,12 @@ function execute(expression) {
   if (typeof value == "function")
     return value(...args)
 
-  if (value == undefined)
-    throw Error("Cannot execute " + JSON.stringify(expression))
+  if (value == undefined) {
+    console.error("Cannot execute " + JSON.stringify(expression))
+    return expression
+  }
 
-  return value[args[0]]
+  return basicFunctions.get(value, ...args)
 }
 
 let model
