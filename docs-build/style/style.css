@@ -10,11 +10,19 @@ html {
 }
 
 body {
-    @apply bg-bg text-fg;
+    @apply bg-bg text-fg mb-60;
 }
 
 @layer base {
     p {
         @apply my-4;
+    }
+
+    ul {
+        @apply list-disc pl-6;
+    }
+
+    main {
+        @apply flex-[4];
     }
 }

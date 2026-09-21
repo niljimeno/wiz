@@ -85,6 +85,7 @@ const basicFunctions = {
   all: (...values) => values.every(value => checkTruth(value)),
   any: (...values) => values.some(value => checkTruth(value)),
   head: list => list[0],
+  first: list => list[0],
   tail: list => list.slice(1),
   init: list => list.slice(0, -1),
   last: list => list.at(-1),
@@ -130,7 +131,8 @@ const basicFunctions = {
       return { ...struct, [key]: value }
     }
   },
-  send: (...args) => args.length > 1 ? send({type: args[0], value: args[1]}) : send(args[0]),
+  keys: struct => Object.keys(struct),
+  send: (...args) => args.length > 1 ? send({ type: args[0], value: args[1] }) : send(args[0]),
   "send-async": effect => sendAsync(effect),
 
   "empty?": list => list == undefined || list.length == 0,
@@ -394,7 +396,7 @@ function patch(node, oldView, view) {
 
   let [tag, ...children] = view
   if (!Array.isArray(oldView) || oldView[0] != tag ||
-      node.nodeType != Node.ELEMENT_NODE || node.tagName.toLowerCase() != tag)
+    node.nodeType != Node.ELEMENT_NODE || node.tagName.toLowerCase() != tag)
     return render(view)
 
   bind(view)
