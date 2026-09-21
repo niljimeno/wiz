@@ -4,13 +4,16 @@
 
 Using scheme for frontend development.
 
+[Documentation](https://niljimeno.github.io/wiz/)
+
 ![img](selling-point.jpg)
 </div>
 
 
 ## State
 
-Usable, but no documentation yet.
+Usable, but very few documentation yet.
+
 
 ## Dependencies
 Required:
